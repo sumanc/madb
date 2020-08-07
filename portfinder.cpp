@@ -28,7 +28,7 @@
 #include <semaphore.h>
 #include <string.h>
 
-void report_and_exit(const char* msg) {
+void reportErrorAndExit(const char* msg) {
     perror(msg);
     exit(-1);
 }
@@ -101,12 +101,24 @@ void releasePort(int port) {
 }
 
 int getDevicePort(std::string serial) {
-    int fd = shm_open("deviceport",
-                      O_RDWR | O_CREAT | O_EXLOCK,
+    int fd = shm_open("deviceport.mesmer",
+                      O_RDWR | O_CREAT, // | O_EXLOCK,
                       0666);
     if (fd < 0) {
-        report_and_exit("Can't open shared mem segment...");
+        reportErrorAndExit("Can't open shared mem segment...");
     }
+    
+#if __linux__
+    while (flock(fd, LOCK_EX) == -1) {
+        if (errno == EWOULDBLOCK) {
+            sleep(1000);
+            continue;
+        }
+        else {
+            reportErrorAndExit("flock");
+        }
+    }
+#endif
     
     int size = 4096;
     
@@ -120,7 +132,7 @@ int getDevicePort(std::string serial) {
                                    0);
     
     if ((caddr_t) -1  == memptr) {
-        report_and_exit("Can't get segment...");
+        reportErrorAndExit("Can't get segment...");
     }
     
     std::string devicesStr = std::string(memptr);
@@ -166,6 +178,9 @@ int getDevicePort(std::string serial) {
     }
     
     munmap(memptr, size);
+#if __linux__
+    flock(fd, LOCK_UN);
+#endif
     close(fd);
     return port;
 }
