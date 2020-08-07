@@ -102,7 +102,7 @@ void releasePort(int port) {
 
 int getDevicePort(std::string serial) {
     int fd = shm_open("deviceport",
-                      O_RDWR | O_CREAT,
+                      O_RDWR | O_CREAT | O_EXLOCK,
                       0666);
     if (fd < 0) {
         report_and_exit("Can't open shared mem segment...");
@@ -119,19 +119,10 @@ int getDevicePort(std::string serial) {
                                    fd,
                                    0);
     
-    if ((caddr_t) -1  == memptr) report_and_exit("Can't get segment...");
+    if ((caddr_t) -1  == memptr) {
+        report_and_exit("Can't get segment...");
+    }
     
-    //  fprintf(stderr, "shared mem address: %p [0..%d]\n", memptr, size - 1);
-    //  fprintf(stderr, "backing file:       /dev/shm%s\n", "devicereport" );
-    
-    /* semaphore code to lock the shared mem */
-    //    sem_t* semptr = sem_open("deviceportsem", /* name */
-    //                             O_CREAT,       /* create the semaphore */
-    //                             0666,   /* protection perms */
-    //                             0);            /* initial value */
-    //    if (semptr == (void*) -1) report_and_exit("sem_open");
-    
-    //    if (!sem_wait(semptr)) { /* wait until semaphore != 0 */
     std::string devicesStr = std::string(memptr);
     
     std::unordered_map<std::string, int> d2pMap;
@@ -173,14 +164,9 @@ int getDevicePort(std::string serial) {
             }
         }
     }
-    /* increment the semaphore so that memreader can read */
-    //        if (sem_post(semptr) < 0) report_and_exit("sem_post");
     
-    
-    /* clean up */
     munmap(memptr, size);
     close(fd);
-    //        sem_close(semptr);
     return port;
 }
 
