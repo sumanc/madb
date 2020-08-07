@@ -7,6 +7,8 @@
 //
 
 #include "portfinder.hpp"
+#include <fcntl.h>
+#include <sys/file.h>
 #include <cstring>
 #include <iostream>
 #include <sstream>
@@ -17,13 +19,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <fcntl.h>
 #include <unordered_map>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <unistd.h>
 #include <semaphore.h>
 #include <string.h>
