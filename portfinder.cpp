@@ -79,13 +79,6 @@ int getFreePort(std::unordered_map<int, std::string> p2dMap) {
         }
         bool isFree = isLocalPortFree(i);
         if (isFree) {
-            char fn[10] = {0};
-            sprintf(fn, "%d.lock", i);
-            int fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
-            if (fd < 0) {
-                continue;
-            }
-            close(fd);
             port = i;
             break;
         }
