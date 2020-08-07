@@ -7,6 +7,7 @@
 //
 
 #include "portfinder.hpp"
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
