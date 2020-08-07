@@ -7,6 +7,7 @@
 //
 
 #include <iostream>
+#include <cstring>
 #include "portfinder.hpp"
 
 void usage(const char *name) {
