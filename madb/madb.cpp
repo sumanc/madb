@@ -117,7 +117,11 @@ int main(int argc, const char * argv[]) {
             return -1;
         }
         
-        printf("madb: Default ADB couldn't find the device. Checking with a new adb server at port:%d\n", port);
+        printf("madb: adb couldn't find the device. restarting at port:%d\n", port);
+        stringstream killCommand;
+        killCommand << "adb -P " << port << " kill-server";
+        runAndGetOutput(killCommand.str().c_str());
+        
         stringstream startCommand;
         startCommand << "adb -P " << port << " start-server";
         runAndGetOutput(startCommand.str().c_str());

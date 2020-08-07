@@ -10,7 +10,6 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
-#include <unistd.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -20,7 +19,19 @@
 #include <netdb.h>
 #include <fcntl.h>
 #include <unordered_map>
-#include <strings.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <semaphore.h>
+#include <string.h>
+
+void report_and_exit(const char* msg) {
+    perror(msg);
+    exit(-1);
+}
 
 bool isLocalPortFree(int port) {
     std::string hostname = std::string("127.0.0.1");
@@ -90,18 +101,42 @@ void releasePort(int port) {
 }
 
 int getDevicePort(std::string serial) {
-    int port = -1;
-    key_t key = ftok("mesemer_devices", 65);
-    int shmid = shmget(key, 4096, 0666|IPC_CREAT);
-#if __linux__
-    int rtrn = shmctl(shmid, SHM_LOCK, (struct shmid_ds *) NULL);
-#endif
-    char *devices = (char*) shmat(shmid,(void*)0, 0);
-    std::string devicesStr = std::string(devices);
+    int fd = shm_open("deviceport",
+                      O_RDWR | O_CREAT,
+                      0666);
+    if (fd < 0) {
+        report_and_exit("Can't open shared mem segment...");
+    }
+    
+    int size = 4096;
+    
+    ftruncate(fd, size); /* get the bytes */
+    
+    caddr_t memptr = (caddr_t)mmap(NULL,
+                                   size,
+                                   PROT_READ | PROT_WRITE,
+                                   MAP_SHARED,
+                                   fd,
+                                   0);
+    
+    if ((caddr_t) -1  == memptr) report_and_exit("Can't get segment...");
+    
+    //  fprintf(stderr, "shared mem address: %p [0..%d]\n", memptr, size - 1);
+    //  fprintf(stderr, "backing file:       /dev/shm%s\n", "devicereport" );
+    
+    /* semaphore code to lock the shared mem */
+    //    sem_t* semptr = sem_open("deviceportsem", /* name */
+    //                             O_CREAT,       /* create the semaphore */
+    //                             0666,   /* protection perms */
+    //                             0);            /* initial value */
+    //    if (semptr == (void*) -1) report_and_exit("sem_open");
+    
+    //    if (!sem_wait(semptr)) { /* wait until semaphore != 0 */
+    std::string devicesStr = std::string(memptr);
     
     std::unordered_map<std::string, int> d2pMap;
     std::unordered_map<int, std::string> p2dMap;
-    
+    int port = 0;
     std::string line;
     std::stringstream devicesStream(devicesStr);
     while(std::getline(devicesStream, line, ',')) {
@@ -122,7 +157,7 @@ int getDevicePort(std::string serial) {
         std::stringstream ss;
         ss << ":" << port << ",";
         serial += ss.str();
-        strncat(devices, serial.c_str(), serial.length());
+        strncat(memptr, serial.c_str(), serial.length());
     }
     else {
         std::string line;
@@ -138,12 +173,72 @@ int getDevicePort(std::string serial) {
             }
         }
     }
+    /* increment the semaphore so that memreader can read */
+    //        if (sem_post(semptr) < 0) report_and_exit("sem_post");
     
-    shmdt(devices);
-#if __linux__
-    rtrn = shmctl(shmid, SHM_UNLOCK, (struct shmid_ds *) NULL);
-#endif
-    // to destroy
-    //    shmctl(shmid, IPC_RMID, NULL);
+    
+    /* clean up */
+    munmap(memptr, size);
+    close(fd);
+    //        sem_close(semptr);
     return port;
 }
+
+//int getDevicePort(std::string serial) {
+//    int port = -1;
+//    key_t key = ftok("mesemer_devices", 65);
+//    int shmid = shmget(key, 4096, 0666|IPC_CREAT);
+//#if __linux__
+//    int rtrn = shmctl(shmid, SHM_LOCK, (struct shmid_ds *) NULL);
+//#endif
+//    char *devices = (char*) shmat(shmid,(void*)0, 0);
+//    std::string devicesStr = std::string(devices);
+//
+//    std::unordered_map<std::string, int> d2pMap;
+//    std::unordered_map<int, std::string> p2dMap;
+//
+//    std::string line;
+//    std::stringstream devicesStream(devicesStr);
+//    while(std::getline(devicesStream, line, ',')) {
+//        std::size_t found = line.find(':');
+//        if (found != std::string::npos) {
+//            std::string portStr = line.substr(found + 1);
+//            port = std::stoi(portStr);
+//            std::string device = line.substr(0, found);
+//            d2pMap[device] = port;
+//            p2dMap[port] = device;
+//        }
+//    }
+//
+//    port = d2pMap[serial];
+//    if (port == 0) {
+//        // find an open port and update shared memory
+//        port = getFreePort(p2dMap);
+//        std::stringstream ss;
+//        ss << ":" << port << ",";
+//        serial += ss.str();
+//        strncat(devices, serial.c_str(), serial.length());
+//    }
+//    else {
+//        std::string line;
+//        std::stringstream devicesStream(devicesStr);
+//        while(std::getline(devicesStream, line, ',')) {
+//            if (line.find(serial) != std::string::npos) {
+//                std::size_t found = line.find(':');
+//                if (found != std::string::npos) {
+//                    std::string portStr = line.substr(found + 1);
+//                    port = std::stoi(portStr);
+//                    break;
+//                }
+//            }
+//        }
+//    }
+//
+//    shmdt(devices);
+//#if __linux__
+//    rtrn = shmctl(shmid, SHM_UNLOCK, (struct shmid_ds *) NULL);
+//#endif
+//    // to destroy
+//    //    shmctl(shmid, IPC_RMID, NULL);
+//    return port;
+//}
