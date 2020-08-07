@@ -10,7 +10,7 @@
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
-#include    <sys/types.h>
+#include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/types.h>
@@ -19,6 +19,7 @@
 #include <netdb.h>
 #include <fcntl.h>
 #include <unordered_map>
+#include <strings.h>
 
 bool isLocalPortFree(int port) {
     std::string hostname = std::string("127.0.0.1");
