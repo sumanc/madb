@@ -13,10 +13,11 @@ all: madb deviceport
 
 
 madb: $(MADB_OBJECTS)
-	$(CC) $(CFLAGS) $(LIBS) $(MADB_OBJECTS) -o out/madb
+	@echo $(LIBS)
+	$(CC) $(MADB_OBJECTS) $(CFLAGS) $(LIBS) -o out/madb
 
 deviceport: $(DEVICEPORT_OBJECTS)
-	$(CC) $(CFLAGS) $(LIBS) $(DEVICEPORT_OBJECTS) -o out/deviceport
+	$(CC) $(DEVICEPORT_OBJECTS) $(CFLAGS) $(LIBS) -o out/deviceport
 
 clean:
 	rm -f *.o out/madb out/deviceport
