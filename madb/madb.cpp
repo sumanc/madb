@@ -93,7 +93,7 @@ int main(int argc, const char * argv[]) {
             cout << out << endl;
         }
     }
-    else { //if (device.find("emulator-") == std::string::npos) {
+    else {
         // make sure device is available in this adb server
         int port = getDevicePort(device);
         stringstream devicesCommand;
@@ -130,8 +130,5 @@ int main(int argc, const char * argv[]) {
         runCommand << "adb -P " << port << " -s " << device << " " << commandArgs.str();
         system(runCommand.str().c_str());
     }
-//    else {
-//        // pass through for emulators
-//    }
     return 0;
 }

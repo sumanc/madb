@@ -13,17 +13,12 @@
 #include <iostream>
 #include <sstream>
 #include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <unordered_map>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #include <semaphore.h>
 #include <string.h>
@@ -51,10 +46,10 @@ bool isLocalPortFree(int port) {
         return false;
     }
     
-    bzero((char *) &serv_addr, sizeof(serv_addr));
+    memset((char *) &serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
-    bcopy((char *)server->h_addr,
-          (char *)&serv_addr.sin_addr.s_addr,
+    memcpy((char *)&serv_addr.sin_addr.s_addr,
+           (char *)server->h_addr,
           server->h_length);
     
     bool ret = true;
@@ -88,21 +83,13 @@ int getFreePort(std::unordered_map<int, std::string> p2dMap) {
 }
 
 void releasePort(int port) {
-    char fn[10] = {0};
-    sprintf(fn, "%d.lock", port);
-    remove(fn);
+
 }
 
-int getDevicePort(std::string serial) {
-    int fd = shm_open("deviceport.mesmer",
-                      O_RDWR | O_CREAT, // | O_EXLOCK,
-                      0666);
-    if (fd < 0) {
-        reportErrorAndExit("Can't open shared mem segment...");
-    }
-    
+void getDeviceMapping(std::unordered_map<int, std::string>& p2dMap, std::unordered_map<std::string, int>& d2pMap) {
+    FILE *f = fopen("/var/mesmer/deviceport.mesmer", "a+");
 #if __linux__
-    while (flock(fd, LOCK_EX) == -1) {
+    while (flock(fileno(f), LOCK_EX) == -1) {
         if (errno == EWOULDBLOCK) {
             sleep(1000);
             continue;
@@ -112,26 +99,57 @@ int getDevicePort(std::string serial) {
         }
     }
 #endif
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
     
-    int size = 4096;
-    
-    ftruncate(fd, size); /* get the bytes */
-    
-    caddr_t memptr = (caddr_t)mmap(NULL,
-                                   size,
-                                   PROT_READ | PROT_WRITE,
-                                   MAP_SHARED,
-                                   fd,
-                                   0);
-    
-    if ((caddr_t) -1  == memptr) {
-        reportErrorAndExit("Can't get segment...");
+    char *contents = (char *)malloc(fsize + 1);
+    int ret = (int)fread(contents, 1, fsize, f);
+    if (ret == -1) {
+        reportErrorAndExit("fread");
     }
+    contents[fsize] = 0;
+    std::string devicesStr = std::string(contents);
     
-    std::string devicesStr = std::string(memptr);
-    
-    std::unordered_map<std::string, int> d2pMap;
-    std::unordered_map<int, std::string> p2dMap;
+    /*
+     // androind on ubuntu doesn't compile for shared mem
+     int fd = shm_open("deviceport.mesmer",
+     O_RDWR | O_CREAT, // | O_EXLOCK,
+     0666);
+     if (fd < 0) {
+     reportErrorAndExit("Can't open shared mem segment...");
+     }
+     
+     #if __linux__
+     while (flock(fd, LOCK_EX) == -1) {
+     if (errno == EWOULDBLOCK) {
+     sleep(1000);
+     continue;
+     }
+     else {
+     reportErrorAndExit("flock");
+     }
+     }
+     #endif
+     
+     int size = 4096;
+     
+     int rtrn = ftruncate(fd, size);
+     if (rtrn == -1) {
+     perror("ftruncate");
+     }
+     caddr_t memptr = (caddr_t)mmap(NULL,
+     size,
+     PROT_READ | PROT_WRITE,
+     MAP_SHARED,
+     fd,
+     0);
+     
+     if ((caddr_t) -1  == memptr) {
+     reportErrorAndExit("Can't get segment...");
+     }
+     std::string devicesStr = std::string(memptr);
+     */
     int port = 0;
     std::string line;
     std::stringstream devicesStream(devicesStr);
@@ -145,36 +163,50 @@ int getDevicePort(std::string serial) {
             p2dMap[port] = device;
         }
     }
+#if __linux__
+    flock(fileno(f), LOCK_UN);
+#endif
+    //    adb_close(fd);
+    fclose(f);
+}
+
+int getDevicePort(std::string serial) {
+    std::unordered_map<std::string, int> d2pMap;
+    std::unordered_map<int, std::string> p2dMap;
+    getDeviceMapping(p2dMap, d2pMap);
     
-    port = d2pMap[serial];
+    int port = d2pMap[serial];
     if (port == 0) {
         // find an open port and update shared memory
         port = getFreePort(p2dMap);
         std::stringstream ss;
         ss << ":" << port << ",";
         serial += ss.str();
-        strncat(memptr, serial.c_str(), serial.length());
-    }
-    else {
-        std::string line;
-        std::stringstream devicesStream(devicesStr);
-        while(std::getline(devicesStream, line, ',')) {
-            if (line.find(serial) != std::string::npos) {
-                std::size_t found = line.find(':');
-                if (found != std::string::npos) {
-                    std::string portStr = line.substr(found + 1);
-                    port = std::stoi(portStr);
-                    break;
-                }
+//        strncat(memptr, serial.c_str(), serial.length());
+        FILE *f = fopen("/var/mesmer/deviceport.mesmer", "a+");
+#if __linux__
+        while (flock(fileno(f), LOCK_EX) == -1) {
+            if (errno == EWOULDBLOCK) {
+                sleep(1000);
+                continue;
+            }
+            else {
+                reportErrorAndExit("flock");
             }
         }
+#endif
+        int ret = fprintf(f, "%s", serial.c_str());
+        if (ret == -1) {
+            perror("fprintf");
+        }
+#if __linux__
+        flock(fileno(f), LOCK_UN);
+#endif
+        fclose(f);
     }
     
-    munmap(memptr, size);
-#if __linux__
-    flock(fd, LOCK_UN);
-#endif
-    close(fd);
+//    munmap(memptr, size);
+//    adb_close(fd);
     return port;
 }
 
