@@ -9,11 +9,11 @@ endif
 MADB_OBJECTS = madb/madb.cpp portfinder.cpp
 DEVICEPORT_OBJECTS = deviceport/deviceport.cpp portfinder.cpp
 
-all: madb1 deviceport
+all: madb deviceport
 
 deviceport: $(DEVICEPORT_OBJECTS)
 	$(CC) $(DEVICEPORT_OBJECTS) $(CFLAGS) $(LIBS) -o out/deviceport
-madb1: $(MADB_OBJECTS)
+madb: $(MADB_OBJECTS)
 	$(CC) $(MADB_OBJECTS) $(CFLAGS) $(LIBS) -o out/madb
 
 
