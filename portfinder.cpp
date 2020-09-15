@@ -88,7 +88,8 @@ void releasePort(int port) {
 
 void getDeviceMapping(std::unordered_map<int, std::string>& p2dMap, std::unordered_map<std::string, int>& d2pMap) {
     FILE *f = fopen("/var/mesmer/deviceport.mesmer", "a+");
-#if __linux__
+//#if __linux__
+    std::cout << getpid() <<  ": Waiting to lock /var/mesmer/deviceport.mesmer" << std::endl;
     while (flock(fileno(f), LOCK_EX) == -1) {
         if (errno == EWOULDBLOCK) {
             sleep(1000);
@@ -98,7 +99,8 @@ void getDeviceMapping(std::unordered_map<int, std::string>& p2dMap, std::unorder
             reportErrorAndExit("flock");
         }
     }
-#endif
+    std::cout << getpid() <<  ": Acquired lock /var/mesmer/deviceport.mesmer" << std::endl;
+//#endif
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
@@ -163,9 +165,15 @@ void getDeviceMapping(std::unordered_map<int, std::string>& p2dMap, std::unorder
             p2dMap[port] = device;
         }
     }
-#if __linux__
-    flock(fileno(f), LOCK_UN);
-#endif
+//#if __linux__
+    ret = flock(fileno(f), LOCK_UN);
+    if (ret == -1) {
+        std::cout << getpid() <<  ": Failed to unlock /var/mesmer/deviceport.mesmer" << std::endl;
+    }
+    else {
+        std::cout << getpid() <<  ": Unlocked /var/mesmer/deviceport.mesmer" << std::endl;
+    }
+//#endif
     //    adb_close(fd);
     fclose(f);
 }
@@ -184,7 +192,8 @@ int getDevicePort(std::string serial) {
         serial += ss.str();
 //        strncat(memptr, serial.c_str(), serial.length());
         FILE *f = fopen("/var/mesmer/deviceport.mesmer", "a+");
-#if __linux__
+//#if __linux__
+        std::cout << getpid() <<  ": Waiting to lock /var/mesmer/deviceport.mesmer" << std::endl;
         while (flock(fileno(f), LOCK_EX) == -1) {
             if (errno == EWOULDBLOCK) {
                 sleep(1000);
@@ -194,14 +203,21 @@ int getDevicePort(std::string serial) {
                 reportErrorAndExit("flock");
             }
         }
-#endif
+        std::cout << getpid() <<  ": Acquired lock /var/mesmer/deviceport.mesmer" << std::endl;
+//#endif
         int ret = fprintf(f, "%s", serial.c_str());
         if (ret == -1) {
             perror("fprintf");
         }
-#if __linux__
-        flock(fileno(f), LOCK_UN);
-#endif
+//#if __linux__
+        ret = flock(fileno(f), LOCK_UN);
+        if (ret == -1) {
+            std::cout << getpid() <<  ": Failed to unlock /var/mesmer/deviceport.mesmer" << std::endl;
+        }
+        else {
+            std::cout << getpid() <<  ": Unlocked /var/mesmer/deviceport.mesmer" << std::endl;
+        }
+//#endif
         fclose(f);
     }
     

@@ -23,7 +23,7 @@ int main(int argc, const char * argv[]) {
     }
     if (strncmp(argv[1], "-s", 2) == 0) {
         int port = getDevicePort(std::string(argv[2]));
-        printf("%d", port);
+        printf("%d\n", port);
         return 1;
     }
     return 0;
